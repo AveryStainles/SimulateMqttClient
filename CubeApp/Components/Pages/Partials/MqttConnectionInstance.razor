@@ -1,0 +1,144 @@
+﻿@using CubeApp.Helpers
+@using MQTTnet
+
+@* Live response from MqttServer *@
+<h3>MQTT response: </h3>
+@if (string.IsNullOrWhiteSpace(MqttRecievedMessage))
+{
+    <br />
+}
+else
+{
+    <div><h4>@MqttRecievedMessage</h4></div>
+}
+
+@* Data to be published to the current topic route *@
+<hr />
+<div>
+    <h3>Message MQTT Topic: </h3>
+    <div>
+        <input type="text" placeholder="Enter Message" @oninput="UpdateDataToPublish" value="@MqttPublishMessage" />
+        <button class="btn btn-primary" @onclick="PublishMessage">Publish Data</button>
+    </div>
+</div>
+
+@* Set and subscribe the current topic route *@
+<hr />
+<h3>Topic Subscription and setting: </h3>
+<div>
+    <p><strong>Current topic:</strong> @GetCurrentTopicRoute()</p>
+    <p> Subscribe Topic button will subscribe to the current topic route.</p>
+</div>
+
+<div>
+    <h3>Set Topic:</h3>
+    <div>
+        <input type="text" placeholder="Enter Message" @oninput="UpdateCurrentTopicRoute" value="@MqttTopicRoute" />
+        <button class="btn btn-primary" @onclick="SubScribeTopic">Subscribe Topic</button>
+    </div>
+</div>
+
+@* Display any current message of mqtt interaction *@
+@if (DisplayMessages.Any())
+{
+    <hr />
+    <h3>Messages</h3>
+    <button class="btn btn-primary" @onclick="ClearMessages">Clear</button>
+    <div>
+        @foreach (var message in DisplayMessages)
+        {
+            <p>@message</p>
+        }
+    </div>
+}
+
+
+@code {
+    private MqttClientHelper mqttClient { get; set; } = new MqttClientHelper();
+    private List<string> DisplayMessages { get; set; } = new List<string>();
+
+    public string MqttPublishMessage { get; set; } = string.Empty;
+    public string MqttTopicRoute { get; set; } = string.Empty;
+    public string MqttRecievedMessage { get; set; } = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Subscribe to default topic "test"
+        await SubScribeTopic();
+    }
+
+
+    // Publish the current data in MqttPublishMessage
+    private async Task PublishMessage()
+    {
+        var dataReceivedFromTopic = MqttRecievedMessage;
+        var topic = GetCurrentTopicRoute();
+        try
+        {
+            var result = await mqttClient.PublishData(topic, MqttPublishMessage);
+
+            if (result != null && result.IsSuccess)
+            {
+                DisplayMessages.Add($"Successfully published {MqttPublishMessage} to topic {MqttTopicRoute}.");
+                MqttPublishMessage = string.Empty;
+            }
+            else
+            {
+                DisplayMessages.Add($"Failed to publish data: {MqttPublishMessage} to topic: {MqttTopicRoute}.");
+            }
+        }
+        catch (Exception ex)
+        {
+            DisplayMessages.Add($"Failed to publish data: {ex.Message}.");
+        }
+    }
+
+    // Update the data to publish to the Mqtt server
+    private void UpdateDataToPublish(ChangeEventArgs e)
+    {
+        MqttPublishMessage = e.Value?.ToString() ?? string.Empty;
+    }
+
+    // Updates the topicRoute the data will be published to
+    private void UpdateCurrentTopicRoute(ChangeEventArgs e)
+    {
+        MqttTopicRoute = e.Value?.ToString() ?? string.Empty;
+    }
+
+    // Subscribed if it's a new topic
+    public async Task SubScribeTopic()
+    {
+        try
+        {
+            string topic = GetCurrentTopicRoute();
+
+            await mqttClient.AddTopicEventListener(topic, async message =>
+            {
+                await InvokeAsync(() =>
+                {
+                    // When any connected client publishes data to the topic,
+                    // set MqttReceivedMessage to that data asyncronously.
+                    MqttRecievedMessage = message.ConvertPayloadToString();
+                    StateHasChanged();
+                });
+            });
+
+            // Don't notify when its the fallback topic
+            if (topic != TopicsConstants.Test)
+                DisplayMessages.Add($"Successfully subscribed to topic {topic}.");
+        }
+        catch (Exception ex)
+        {
+            DisplayMessages.Add($"Failed to subscribe topic: {ex.Message}.");
+        }
+    }
+
+    // Helper
+
+    // Fallback to topic "test" if property isn't set yet.
+    private string GetCurrentTopicRoute() => string.IsNullOrEmpty(MqttTopicRoute)
+            ? TopicsConstants.Test
+            : MqttTopicRoute;
+
+    private void ClearMessages() => DisplayMessages.Clear();
+}
