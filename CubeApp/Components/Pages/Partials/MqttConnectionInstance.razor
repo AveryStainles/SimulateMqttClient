@@ -1,16 +1,15 @@
 ﻿@using CubeApp.Helpers
 @using MQTTnet
 
+<h1>MQTT Client Functions</h1>
+
+<hr />
+
 @* Live response from MqttServer *@
 <h3>MQTT response: </h3>
-@if (string.IsNullOrWhiteSpace(MqttRecievedMessage))
-{
-    <br />
-}
-else
-{
-    <div><h4>@MqttRecievedMessage</h4></div>
-}
+<div>
+    <h5>@(string.IsNullOrWhiteSpace(MqttRecievedMessage) ? "N/A" : MqttRecievedMessage)</h5>
+</div>
 
 @* Data to be published to the current topic route *@
 <hr />
